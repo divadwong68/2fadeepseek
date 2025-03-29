@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Refreshing 2FA Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/otpauth@9.0.2/dist/otpauth.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --text-color: #333;
+            --container-bg: #ffffff;
+            --input-bg: #ffffff;
+            --input-border: #ddd;
+            --button-bg: #4CAF50;
+            --button-hover: #45a049;
+            --result-bg: #e9f7ef;
+            --code-bg: #ffffff;
+            --progress-bg: #e0e0e0;
+            --progress-fill: #4CAF50;
+            --progress-warning: #ff9800;
+            --error-color: #d32f2f;
+            --info-color: #666;
+            --shadow-color: rgba(0,0,0,0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --container-bg: #1e1e1e;
+            --input-bg: #2d2d2d;
+            --input-border: #444;
+            --button-bg: #388e3c;
+            --button-hover: #2e7d32;
+            --result-bg: #1a3a1e;
+            --code-bg: #2d2d2d;
+            --progress-bg: #444;
+            --progress-fill: #388e3c;
+            --progress-warning: #fb8c00;
+            --error-color: #f44336;
+            --info-color: #aaa;
+            --shadow-color: rgba(0,0,0,0.3);
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            background-color: var(--container-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px var(--shadow-color);
+            transition: background-color 0.3s;
+        }
+
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 4px;
+            box-sizing: border-box;
+            color: var(--text-color);
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+
+        button {
+            background-color: var(--button-bg);
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: transparent;
+            border: 1px solid var(--input-border);
+            color: var(--text-color);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--result-bg);
+            border-radius: 4px;
+            word-break: break-all;
+            transition: background-color 0.3s;
+        }
+
+        .error {
+            color: var(--error-color);
+            margin-top: 10px;
+        }
+
+        .info {
+            font-size: 0.9em;
+            color: var(--info-color);
+            margin-top: 5px;
+            transition: color 0.3s;
+        }
+
+        .countdown {
+            font-size: 1.2em;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background-color: var(--progress-bg);
+            border-radius: 5px;
+            margin: 10px 0;
+            overflow: hidden;
+            transition: background-color 0.3s;
+        }
+
+        .progress {
+            height: 100%;
+            background-color: var(--progress-fill);
+            width: 100%;
+            transition: width 1s linear, background-color 0.3s;
+        }
+
+        .code-display {
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 5px;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: var(--code-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px var(--shadow-color);
+            transition: background-color 0.3s;
+        }
+
+        @media (max-width: 600px) {
+            .theme-toggle {
+                position: static;
+                display: block;
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button id="themeToggle" class="theme-toggle">🌙 Dark Mode</button>
+        <h1>Auto-Refreshing 2FA Generator</h1>
+        <p>This tool generates Time-based One-Time Passwords (TOTP) that automatically refresh.</p>
+        
+        <div>
+            <label for="secret">Enter your secret (Base32 encoded or plain text):</label>
+            <textarea id="secret" rows="3" placeholder="Enter your secret key here (e.g., JBSWY3DPEHPK3PXP)"></textarea>
+            <div class="info">Typically a 16-32 character Base32 string (A-Z, 2-7). Spaces will be automatically removed.</div>
+        </div>
+        
+        <div>
+            <label for="issuer">Issuer (optional):</label>
+            <input type="text" id="issuer" placeholder="e.g., Google, GitHub">
+        </div>
+        
+        <div>
+            <label for="account">Account (optional):</label>
+            <input type="text" id="account" placeholder="e.g., user@example.com">
+        </div>
+        
+        <button id="generate">Start 2FA Generator</button>
+        
+        <div id="error" class="error"></div>
+        
+        <div id="result" class="result" style="display: none;">
+            <div class="countdown">
+                <div id="timeLeft">Code refreshes in 30 seconds</div>
+                <div class="progress-bar">
+                    <div id="progress" class="progress"></div>
+                </div>
+            </div>
+            
+            <div class="code-display" id="code"></div>
+            
+            <h3>TOTP URI:</h3>
+            <div id="uri"></div>
+            <div class="info">You can use this URI to generate a QR code for 2FA apps.</div>
+            
+            <h3 style="margin-top: 20px;">Details:</h3>
+            <div id="details"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const secretInput = document.getElementById('secret');
+            const issuerInput = document.getElementById('issuer');
+            const accountInput = document.getElementById('account');
+            const generateBtn = document.getElementById('generate');
+            const themeToggle = document.getElementById('themeToggle');
+            const resultDiv = document.getElementById('result');
+            const codeDiv = document.getElementById('code');
+            const timeLeftDiv = document.getElementById('timeLeft');
+            const progressDiv = document.getElementById('progress');
+            const uriDiv = document.getElementById('uri');
+            const detailsDiv = document.getElementById('details');
+            const errorDiv = document.getElementById('error');
+            
+            let timerInterval;
+            let totpInstance;
+            const period = 30; // Standard TOTP period in seconds
+            
+            // Theme toggle functionality
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                if (currentTheme === 'dark') {
+                    document.documentElement.removeAttribute('data-theme');
+                    themeToggle.textContent = '🌙 Dark Mode';
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    themeToggle.textContent = '☀️ Light Mode';
+                }
+                // Save preference to localStorage
+                localStorage.setItem('theme', currentTheme === 'dark' ? 'light' : 'dark');
+            });
+
+            // Check for saved theme preference
+            if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = '☀️ Light Mode';
+            }
+
+            // Start the 2FA generator
+            generateBtn.addEventListener('click', function() {
+                startGenerator();
+            });
+            
+            function startGenerator() {
+                errorDiv.textContent = '';
+                let secret = secretInput.value.trim();
+                
+                if (!secret) {
+                    errorDiv.textContent = 'Please enter a secret key';
+                    return;
+                }
+                
+                try {
+                    // Clear any existing timer
+                    if (timerInterval) clearInterval(timerInterval);
+                    
+                    // Remove all spaces from the secret (fix for the space bug)
+                    secret = secret.replace(/\s+/g, '');
+                    
+                    // Create TOTP instance
+                    totpInstance = new OTPAuth.TOTP({
+                        issuer: issuerInput.value.trim(),
+                        label: accountInput.value.trim(),
+                        algorithm: 'SHA1',
+                        digits: 6,
+                        period: period,
+                        secret: isBase32(secret) ? secret : OTPAuth.Secret.fromUTF8(secret).base32
+                    });
+                    
+                    // Generate and display initial code
+                    updateCode();
+                    
+                    // Show result section
+                    resultDiv.style.display = 'block';
+                    
+                    // Update time remaining every second
+                    timerInterval = setInterval(updateCountdown, 1000);
+                    
+                } catch (e) {
+                    errorDiv.textContent = 'Error: ' + e.message;
+                    console.error(e);
+                }
+            }
+            
+            function updateCode() {
+                if (!totpInstance) return;
+                
+                // Generate new code
+                const code = totpInstance.generate();
+                
+                // Format code with spaces for better readability (e.g., "123 456")
+                const formattedCode = code.match(/.{1,3}/g).join(' ');
+                
+                // Display code
+                codeDiv.textContent = formattedCode;
+                uriDiv.textContent = totpInstance.toString();
+                detailsDiv.innerHTML = `
+                    <strong>Secret (Base32):</strong> ${totpInstance.secret.base32}<br>
+                    <strong>Algorithm:</strong> ${totpInstance.algorithm}<br>
+                    <strong>Digits:</strong> ${totpInstance.digits}<br>
+                    <strong>Period:</strong> ${totpInstance.period} seconds
+                `;
+                
+                // Reset progress bar animation
+                progressDiv.style.transition = 'none';
+                progressDiv.style.width = '100%';
+                // Force reflow to reset animation
+                void progressDiv.offsetWidth;
+                progressDiv.style.transition = 'width 1s linear';
+            }
+            
+            function updateCountdown() {
+                if (!totpInstance) return;
+                
+                const now = new Date();
+                const seconds = Math.floor(now.getTime() / 1000);
+                const remaining = period - (seconds % period);
+                
+                // Update countdown text
+                timeLeftDiv.textContent = `Code refreshes in ${remaining} second${remaining !== 1 ? 's' : ''}`;
+                
+                // Update progress bar
+                const progressPercentage = (remaining / period) * 100;
+                progressDiv.style.width = `${progressPercentage}%`;
+                
+                // Change color when code is about to expire
+                if (remaining <= 5) {
+                    progressDiv.style.backgroundColor = 'var(--progress-warning)';
+                } else {
+                    progressDiv.style.backgroundColor = 'var(--progress-fill)';
+                }
+                
+                // Generate new code exactly when the period rolls over (remaining === 30)
+                if (remaining === period) {
+                    updateCode();
+                }
+            }
+            
+            function isBase32(str) {
+                // Base32 regex - allows for padding but doesn't require it
+                const base32Regex = /^[A-Z2-7]+=*$/i;
+                return base32Regex.test(str) && (str.length % 8 === 0 || str.length % 8 === 2 || str.length % 8 === 4 || str.length % 8 === 5 || str.length % 8 === 7);
+            }
+        });
+    </script>
+</body>
+</html>
